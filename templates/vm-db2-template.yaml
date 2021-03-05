@@ -1,0 +1,150 @@
+kind: Template
+apiVersion: template.openshift.io/v1
+metadata:
+  name: vm-template-db2
+  namespace: openshift
+  annotations:
+    name.os.template.kubevirt.io/db2: DB2 Database
+    openshift.io/display-name: DB2 Database
+    defaults.template.kubevirt.io/disk: rootdisk
+    description: DB2 Database
+    defaults.template.kubevirt.io/network: default
+    template.kubevirt.io/editable: |
+      /objects[0].spec.template.spec.domain.cpu.cores
+      /objects[0].spec.template.spec.domain.resources.requests.memory
+      /objects[0].spec.template.spec.networks
+      /objects[0].spec.template.spec.volumes
+      /objects[0].spec.template.spec.domain.devices.disks
+    template.openshift.io/bindable: 'false'
+    tags: 'hidden,kubevirt,virtualmachine'
+    validations: |
+      [
+        {
+          "name": "minimal-required-memory",
+          "path": "jsonpath::.spec.domain.resources.requests.memory",
+          "rule": "integer",
+          "message": "This VM requires at least 2GB of memory.",
+          "min": 2147483648
+        }
+      ]
+    iconClass: icon-fedora
+    template.kubevirt.io/provider: Luis Arizmendi
+    openshift.io/provider-display-name: KubeVirt
+  labels:
+    os.template.kubevirt.io/fedora32: 'true'
+    flavor.template.kubevirt.io/medium: 'true'
+    workload.template.kubevirt.io/server: 'true'
+    vm.kubevirt.io/template: vm-template-db2
+    vm.kubevirt.io/template.namespace: openshift
+    template.kubevirt.io/type: base
+    workload.template.kubevirt.io/highperformance: 'true'
+objects:
+  - apiVersion: kubevirt.io/v1alpha3
+    kind: VirtualMachine
+    metadata:
+      labels:
+        app: '${NAME}'
+        vm.kubevirt.io/template: vm-template-db2
+        vm.kubevirt.io/template.revision: '1'
+        vm.kubevirt.io/template.version: v0.1
+      name: '${NAME}'
+    spec:
+      dataVolumeTemplates:
+        - apiVersion: cdi.kubevirt.io/v1beta1
+          kind: DataVolume
+          metadata:
+            creationTimestamp: null
+            name: ${NAME}-datavolume
+          spec:
+            pvc:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 10Gi
+              volumeMode: Filesystem
+            source:
+              blank: {}
+      running: false
+      template:
+        metadata:
+          labels:
+            kubevirt.io/domain: '${NAME}'
+            kubevirt.io/size: medium
+        spec:
+          domain:
+            cpu:
+              cores: 2
+              sockets: 1
+              threads: 1
+            devices:
+              disks:
+                - name: rootdisk
+                  bootOrder: 1
+                  disk:
+                    bus: virtio
+                - name: data
+                  disk:
+                    bus: virtio
+                  serial: DATA
+                - disk:
+                    bus: virtio
+                  name: cloudinitdisk
+              interfaces:
+                - name: default
+                  masquerade: {}
+                  model: virtio
+              networkInterfaceMultiqueue: true
+              rng: {}
+            ioThreadsPolicy: shared
+            machine:
+              type: pc-q35-rhel8.2.0
+            resources:
+              requests:
+                memory: 8Gi
+          evictionStrategy: LiveMigrate
+          networks:
+            - name: default
+              pod: {}
+          terminationGracePeriodSeconds: 180
+          volumes:
+            - name: rootdisk
+              persistentVolumeClaim:
+                claimName: '${PVCNAME}'
+            - dataVolume:
+                name: ${NAME}-datavolume
+              name: 'data'
+            - cloudInitNoCloud:
+                userData: |-
+                  #cloud-config
+                  user: db2inst1
+                  password: ${CLOUD_USER_PASSWORD}
+                  chpasswd: { expire: False }
+                  runcmd:
+                   -  mkdir /data
+                   -  mount /dev/disk/by-id/virtio-DATA /data
+                   -  mv /db2home/* /data
+                   -  umount /data
+                   -  mount /dev/disk/by-id/virtio-DATA /db2home
+                   -  runuser -l  db2inst1 -c '/db2home/db2inst1/sqllib/adm/db2start'
+                   -  echo "runuser -l  db2inst1 -c '/db2home/db2inst1/sqllib/adm/db2start'" >> /etc/rc.local
+                   -  echo "exit 0" >> /etc/rc.local
+              name: cloudinitdisk
+parameters:
+  - name: NAME
+    description: VM name
+    generate: expression
+    from: 'db2-[a-z0-9]{16}'
+  - name: PVCNAME
+    description: Name of the PVC with the disk image
+    required: true
+  - name: SRC_PVC_NAME
+    description: Name of the PVC to clone
+    value: db2
+  - name: SRC_PVC_NAMESPACE
+    description: Namespace of the source PVC
+    value: openshift-virtualization-os-images
+  - name: CLOUD_USER_PASSWORD
+    description: Randomized password for the cloud-init user fedora
+    generate: expression
+    from: '[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}'

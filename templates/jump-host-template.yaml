@@ -1,0 +1,199 @@
+---
+kind: Template
+apiVersion: template.openshift.io/v1
+metadata:
+  name: jump-host-vm-template
+  namespace: openshift
+  annotations:
+    openshift.io/display-name: Jump Host VM
+    description: >-
+      A VM based on Fedora, with SSH service exposed using a NodePort, which can
+      be usefull to access other VMs located in the internal SDN without having
+      to publish their SSH services.
+
+      It requires:
+        - OpenShift Virtualization installed
+        - StorageClass created
+        - Fedora golden image already uploaded.
+    openshift.io/long-description: >-
+      A VM based on Fedora, with SSH service exposed using a NodePort, which can
+      be usefull to access other VMs located in the internal SDN without having
+      to publish their SSH services.
+
+      It requires OpenShift Virtualization installed, a StorageClass and a Fedora
+      Golden image already uploaded.
+    iconClass: icon-kubevirt
+    openshift.io/provider-display-name: 'Luis Arizmendi (larizmen@redhat.com)'
+objects:
+- apiVersion: v1
+  kind: Service
+  metadata:
+   name: ${VM_NAME}-ssh-nodeport
+  spec:
+   type: NodePort
+   selector:
+     kubevirt.io/domain: ${VM_NAME}
+   ports:
+     - protocol: TCP
+       port: 22
+       targetPort: 22
+       nodePort: "${{SSH_NODEPORT}}"
+- kind: Secret
+  apiVersion: v1
+  metadata:
+    name: ${VM_NAME}-access
+  data:
+    ssh-public-key: >-
+      ${SSH_PUBLIC_KEY}
+    user-password: ${SSH_PASSWORD}
+  type: Opaque
+- apiVersion: kubevirt.io/v1alpha3
+  kind: VirtualMachine
+  metadata:
+    annotations:
+      kubevirt.io/latest-observed-api-version: v1alpha3
+      kubevirt.io/storage-observed-api-version: v1alpha3
+      name.os.template.kubevirt.io/fedora32: Fedora 31 or higher
+    name: ${VM_NAME}
+    labels:
+      app: ${VM_NAME}
+      flavor.template.kubevirt.io/tiny: 'true'
+      os.template.kubevirt.io/fedora32: 'true'
+      vm.kubevirt.io/template: fedora-highperformance-tiny-v0.11.3
+      vm.kubevirt.io/template.namespace: openshift
+      vm.kubevirt.io/template.revision: '1'
+      vm.kubevirt.io/template.version: v0.12.4
+      workload.template.kubevirt.io/highperformance: 'true'
+  spec:
+    dataVolumeTemplates:
+      - apiVersion: cdi.kubevirt.io/v1beta1
+        kind: DataVolume
+        metadata:
+          creationTimestamp: null
+          name: ${VM_NAME}-rootdisk
+        spec:
+          pvc:
+            accessModes:
+              - ${DATA_MODE}
+            resources:
+              requests:
+                storage: ${DATA_ROOT_SIZE}
+            storageClassName: ${DATA_CLASS}
+            volumeMode: Filesystem
+          source:
+            pvc:
+              name: fedora
+              namespace: openshift-virtualization-os-images
+    running: true
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          flavor.template.kubevirt.io/tiny: 'true'
+          kubevirt.io/domain: ${VM_NAME}
+          os.template.kubevirt.io/fedora32: 'true'
+          vm.kubevirt.io/name: ${VM_NAME}
+          workload.template.kubevirt.io/highperformance: 'true'
+      spec:
+        domain:
+          cpu:
+            cores: "${{VM_CORES}}"
+            sockets: 1
+            threads: 1
+          devices:
+            disks:
+              - bootOrder: 1
+                disk:
+                  bus: virtio
+                name: rootdisk
+              - disk:
+                  bus: virtio
+                name: ${VM_NAME}-access-disk
+                serial: ACCESS
+              - disk:
+                  bus: virtio
+                name: cloudinitdisk
+            interfaces:
+              - masquerade: {}
+                name: default
+            networkInterfaceMultiqueue: true
+            rng: {}
+          ioThreadsPolicy: shared
+          machine:
+            type: pc-q35-rhel8.2.0
+          resources:
+            requests:
+              memory: ${VM_MEMORY}
+        evictionStrategy: LiveMigrate
+        hostname: ${VM_NAME}
+        networks:
+          - name: default
+            pod: {}
+        terminationGracePeriodSeconds: 180
+        volumes:
+          - dataVolume:
+              name: ${VM_NAME}-rootdisk
+            name: rootdisk
+          - name: ${VM_NAME}-access-disk
+            secret:
+              secretName: ${VM_NAME}-access
+          - cloudInitNoCloud:
+              userData: |-
+                #cloud-config
+                user: fedora
+                password: ${SSH_PASSWORD}
+                chpasswd: { expire: False }
+                runcmd:
+                  - mkdir /tmp/access
+                  - mount /dev/disk/by-id/virtio-ACCESS /tmp/access
+                  - cat /tmp/access/ssh-public-key >> /home/fedora/.ssh/authorized_keys
+                  - umount /tmp/access
+                  - rm -rf /tmp/access
+            name: cloudinitdisk
+parameters:
+  - name: VM_NAME
+    displayName: Name of the Jump Host VM
+    description: Give a name to your jump host vm
+    value: "jump-host"
+    required: true
+  - name: VM_CORES
+    displayName: vCores of the jump host
+    description: vCores of the jump host
+    required: true
+    value: "1"
+  - name: VM_MEMORY
+    displayName: Memory of the jump host
+    description: Memory of the jump host
+    required: true
+    value: "1Gi"
+  - name: DATA_ROOT_SIZE
+    displayName: Size of the root disk
+    description: Size of the root disk
+    required: true
+    value: "20Gi"
+  - name: SSH_NODEPORT
+    displayName: Port where to publish SSH on worker nodes
+    description: Port to be used on nodes to access ssh of this VM
+    required: true
+    value: "30022"
+  - name: SSH_PUBLIC_KEY
+    displayName: SSH public key
+    description: SSH public key to be injected in the jump host
+    required: true
+    value: ""
+  - name: SSH_PASSWORD
+    displayName: Password for fedora user
+    description: Password to be configured for the default 'fedora' user
+    required: true
+    generate: "expression"
+    from: "[a-zA-Z0-9]{16}"
+  - name: DATA_MODE
+    displayName: Data access mode
+    description: Select ReadWriteMany or ReadWriteOnce
+    required: true
+    value: "ReadWriteMany"
+  - name: DATA_CLASS
+    displayName: StorageClass name
+    description: Kubernetes StorageClass name where to create the PVs
+    required: true
+    value: "managed-nfs-storage"
