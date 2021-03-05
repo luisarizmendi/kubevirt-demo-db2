@@ -128,6 +128,7 @@ objects:
                    -  mv /db2home/* /data
                    -  umount /data
                    -  mount /dev/disk/by-id/virtio-DATA /db2home
+                   -  echo '/dev/disk/by-id/virtio-DATA /db2home ext4 defaults   0   1' >> /etc/fstab
                    -  runuser -l  db2inst1 -c '/db2home/db2inst1/sqllib/adm/db2start'
                    -  echo "runuser -l  db2inst1 -c '/db2home/db2inst1/sqllib/adm/db2start'" >> /etc/rc.local
                    -  echo "exit 0" >> /etc/rc.local
