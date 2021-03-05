@@ -123,6 +123,7 @@ objects:
                   runcmd:
                    -  echo "0 $(hostname) 0" > /db2home/db2inst1/sqllib/db2nodes.cfg
                    -  mkdir /data
+                   -  mkfs.ext4 /dev/disk/by-id/virtio-DATA
                    -  mount /dev/disk/by-id/virtio-DATA /data
                    -  mv /db2home/* /data
                    -  umount /data
