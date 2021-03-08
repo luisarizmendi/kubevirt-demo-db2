@@ -121,17 +121,16 @@ objects:
                   password: ${CLOUD_USER_PASSWORD}
                   chpasswd: { expire: False }
                   runcmd:
-                   -  echo "0 $(hostname) 0" > /db2home/db2inst1/sqllib/db2nodes.cfg
-                   -  mkdir /data
-                   -  mkfs.ext4 /dev/disk/by-id/virtio-DATA
-                   -  mount /dev/disk/by-id/virtio-DATA /data
-                   -  mv /db2home/* /data
-                   -  umount /data
-                   -  mount /dev/disk/by-id/virtio-DATA /db2home
-                   -  echo '/dev/disk/by-id/virtio-DATA /db2home ext4 defaults   0   1' >> /etc/fstab
-                   -  runuser -l  db2inst1 -c '/db2home/db2inst1/sqllib/adm/db2start'
-                   -  echo "runuser -l  db2inst1 -c '/db2home/db2inst1/sqllib/adm/db2start'" >> /etc/rc.local
-                   -  echo "exit 0" >> /etc/rc.local
+                    -  runuser -l  db2inst1 -c '/db2home/db2inst1/sqllib/adm/db2stop'
+                    -  echo "0 $(hostname) 0" > /db2home/db2inst1/sqllib/db2nodes.cfg
+                    -  mkdir /data
+                    -  mkfs.ext4 /dev/disk/by-id/virtio-DATA
+                    -  mount /dev/disk/by-id/virtio-DATA /data
+                    -  mv /db2home/* /data
+                    -  umount /data
+                    -  mount /dev/disk/by-id/virtio-DATA /db2home
+                    -  echo '/dev/disk/by-id/virtio-DATA /db2home ext4 defaults   0   1' >> /etc/fstab
+                    -  runuser -l  db2inst1 -c '/db2home/db2inst1/sqllib/adm/db2start'
               name: cloudinitdisk
 parameters:
   - name: NAME
