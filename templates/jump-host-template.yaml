@@ -135,6 +135,7 @@ objects:
                 #cloud-config
                 user: fedora
                 password: ${SSH_PASSWORD}
+                ssh_pwauth: True 
                 chpasswd: { expire: False }
             name: cloudinitdisk
 parameters:
