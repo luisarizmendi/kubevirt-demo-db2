@@ -108,10 +108,6 @@ objects:
                 name: rootdisk
               - disk:
                   bus: virtio
-                name: ${VM_NAME}-access-disk
-                serial: ACCESS
-              - disk:
-                  bus: virtio
                 name: cloudinitdisk
             interfaces:
               - masquerade: {}
@@ -134,21 +130,12 @@ objects:
           - dataVolume:
               name: ${VM_NAME}-rootdisk
             name: rootdisk
-          - name: ${VM_NAME}-access-disk
-            secret:
-              secretName: ${VM_NAME}-access
           - cloudInitNoCloud:
               userData: |-
                 #cloud-config
                 user: fedora
                 password: ${SSH_PASSWORD}
                 chpasswd: { expire: False }
-                runcmd:
-                  - mkdir /tmp/access
-                  - mount /dev/disk/by-id/virtio-ACCESS /tmp/access
-                  - cat /tmp/access/ssh-public-key >> /home/fedora/.ssh/authorized_keys
-                  - umount /tmp/access
-                  - rm -rf /tmp/access
             name: cloudinitdisk
 parameters:
   - name: VM_NAME
@@ -176,11 +163,6 @@ parameters:
     description: Port to be used on nodes to access ssh of this VM
     required: true
     value: "30022"
-  - name: SSH_PUBLIC_KEY
-    displayName: SSH public key
-    description: SSH public key to be injected in the jump host
-    required: true
-    value: ""
   - name: SSH_PASSWORD
     displayName: Password for fedora user
     description: Password to be configured for the default 'fedora' user
