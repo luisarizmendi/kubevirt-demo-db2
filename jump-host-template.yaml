@@ -59,10 +59,9 @@ objects:
       app: ${VM_NAME}
       flavor.template.kubevirt.io/tiny: 'true'
       os.template.kubevirt.io/fedora32: 'true'
-      vm.kubevirt.io/template: fedora-highperformance-tiny-v0.11.3
+      vm.kubevirt.io/template: fedora-highperformance-tiny
       vm.kubevirt.io/template.namespace: openshift
       vm.kubevirt.io/template.revision: '1'
-      vm.kubevirt.io/template.version: v0.12.4
       workload.template.kubevirt.io/highperformance: 'true'
   spec:
     dataVolumeTemplates:
